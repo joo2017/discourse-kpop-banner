@@ -15,8 +15,6 @@ import { fireMultipleCannons } from "../lib/kpop-banner-105-confetti";
 import { createKpopBanner105DataCache } from "../lib/kpop-banner-105-data-cache";
 import {
 	buildKpoppingHistoryItem,
-	buildKpoppingWinRankings,
-	buildPrecomputedKpoppingWinRankings,
 	buildSoridataWinRankings,
 	getKpoppingEpisodeLabel,
 	mapCircleSong,
@@ -625,12 +623,41 @@ function mergeSongsBySource(...sources) {
 function normalizeImageLookupText(value) {
 	return String(value || "")
 		.toLowerCase()
+		.replace(/\([^)]*\)/g, " ")
+		.replace(/[^a-z0-9가-힣]+/g, " ")
 		.replace(/\s+/g, " ")
 		.trim();
 }
 
+function normalizeImageTitle(value) {
+	return String(value || "")
+		.toLowerCase()
+		.replace(/[^a-z0-9가-힣]+/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function extractRepresentativeSongTitle(song) {
+	const directTitle = String(song?.representativeSong || "").trim();
+	if (directTitle) {
+		return directTitle;
+	}
+
+	const label = String(song?.artist || "").trim();
+	const labelMatch = label.match(/^代表曲：(.+)$/);
+	if (labelMatch?.[1]) {
+		return labelMatch[1].trim();
+	}
+
+	const firstSong = Array.isArray(song?.musicShowRankMeta?.songs)
+		? String(song.musicShowRankMeta.songs[0] || "")
+		: "";
+	return firstSong.replace(/\s+\d+$/g, "").trim();
+}
+
 function hydrateMusicShowRankImages(nextSongsBySource) {
 	const songImageMap = new Map();
+	const titleImageMap = new Map();
 	const artistImageMap = new Map();
 
 	Object.entries(nextSongsBySource || {}).forEach(([key, songs]) => {
@@ -641,13 +668,16 @@ function hydrateMusicShowRankImages(nextSongsBySource) {
 		songs.forEach((song) => {
 			const imageUrl = String(song?.imageUrl || "").trim();
 			const artist = normalizeImageLookupText(song?.artist);
-			const title = normalizeImageLookupText(song?.title);
+			const title = normalizeImageTitle(song?.title);
 			if (!imageUrl || !artist) {
 				return;
 			}
 
 			if (title && !songImageMap.has(`${artist}|||${title}`)) {
 				songImageMap.set(`${artist}|||${title}`, imageUrl);
+			}
+			if (title && !titleImageMap.has(title)) {
+				titleImageMap.set(title, imageUrl);
 			}
 			if (!artistImageMap.has(artist)) {
 				artistImageMap.set(artist, imageUrl);
@@ -666,10 +696,11 @@ function hydrateMusicShowRankImages(nextSongsBySource) {
 			}
 
 			const artist = normalizeImageLookupText(song?.artist);
-			const title = normalizeImageLookupText(song?.title);
+			const title = normalizeImageTitle(song?.title);
+			const representativeTitle = normalizeImageTitle(extractRepresentativeSongTitle(song));
 			const imageUrl = key === "kpopping-song-wins"
-				? songImageMap.get(`${artist}|||${title}`) || artistImageMap.get(artist) || ""
-				: artistImageMap.get(title) || artistImageMap.get(artist) || "";
+				? songImageMap.get(`${artist}|||${title}`) || titleImageMap.get(title) || artistImageMap.get(artist) || ""
+				: artistImageMap.get(title) || artistImageMap.get(artist) || titleImageMap.get(representativeTitle) || "";
 
 			return imageUrl ? { ...song, imageUrl } : song;
 		});
@@ -834,7 +865,7 @@ async function fetchCircleMultiSongsFromNetwork() {
 
 async function fetchKpoppingSongsFromNetwork(candidates) {
 	const nextSongsBySource = createEmptySongsBySource();
-	const applyKpoppingEpisodes = (episodes, summary = null) => {
+	const applyKpoppingEpisodes = (episodes) => {
 		const usableEpisodes = (Array.isArray(episodes) ? episodes : [])
 			.filter(
 				(episode) =>
