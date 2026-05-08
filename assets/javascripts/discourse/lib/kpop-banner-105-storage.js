@@ -1,12 +1,9 @@
 const sourceStorageKey = "kpop_banner_chart_source_v1";
 const periodStorageKey = "kpop_banner_chart_period_v1";
-const sourceOptions = ["circle-global", "circle-digital", "circle-album", "kpopping"];
-const basePeriodOptions = ["day", "week", "month", "year"];
 
-export function createKpopBanner105Storage({ kpoppingPeriodOptions = [] } = {}) {
+export function createKpopBanner105Storage() {
   let bannerCloseUntilKey = "kpop_banner_hidden_until_v2:anon";
   let likeCelebrationStateKey = "kpop_banner_like_celebration_v1:anon";
-  const periodOptions = [...basePeriodOptions, ...kpoppingPeriodOptions];
 
   return {
     setBannerStorageScope(userId) {
@@ -16,39 +13,24 @@ export function createKpopBanner105Storage({ kpoppingPeriodOptions = [] } = {}) 
     },
 
     getStoredSource() {
-      try {
-        const raw = String(window?.localStorage?.getItem(sourceStorageKey) || "");
-        if (sourceOptions.includes(raw)) {
-          return raw;
-        }
-        return "ichart";
-      } catch {
-        return "ichart";
-      }
+      return "ichart";
     },
 
-    setStoredSource(source) {
+    setStoredSource() {
       try {
-        const next = sourceOptions.includes(source) ? source : "ichart";
-        window?.localStorage?.setItem(sourceStorageKey, next);
+        window?.localStorage?.removeItem(sourceStorageKey);
       } catch {
         return;
       }
     },
 
     getStoredPeriod() {
-      try {
-        const raw = String(window?.localStorage?.getItem(periodStorageKey) || "");
-        return periodOptions.includes(raw) ? raw : "day";
-      } catch {
-        return "day";
-      }
+      return "day";
     },
 
-    setStoredPeriod(period) {
+    setStoredPeriod() {
       try {
-        const next = periodOptions.includes(period) ? period : "day";
-        window?.localStorage?.setItem(periodStorageKey, next);
+        window?.localStorage?.removeItem(periodStorageKey);
       } catch {
         return;
       }
